@@ -6,7 +6,7 @@
 
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-  <title>Super Tetra Game </title>
+  <title>Super Tetra Game</title>
   <style>
     :root{
       --bg0:#0b1020;
@@ -401,7 +401,31 @@
       outline: 2px solid rgba(120,255,220,.55);
       box-shadow: 0 0 0 6px rgba(120,255,220,.10);
     }
-  </style>
+  
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+
+#app, .app, #root {
+  display: flex;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+
+.game-container, .game-area, canvas {
+  flex: 1 1 auto;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+</style>
 </head>
 
 <body>
@@ -924,7 +948,8 @@
   let highScore = 0;
   let leaderboard = [];
 
-  let paused = false, gameOver = false;
+  let paused = false, stopMusic(); playSound("gameOver");
+gameOver = false;
   let dropInterval = 900, dropAcc = 0;
   let lastTime = 0;
 
@@ -1335,7 +1360,8 @@
   }
 
   function endGame(){
-    gameOver = true;
+    stopMusic(); playSound("gameOver");
+gameOver = true;
     paused = false;
 
     if (score > highScore) highScore = score;
@@ -1490,7 +1516,8 @@
 
     replayStartPerf = performance.now();
     paused = false;
-    gameOver = false;
+    stopMusic(); playSound("gameOver");
+gameOver = false;
     overlayGameOver.classList.remove('show');
 
     updateHud();
@@ -1505,7 +1532,8 @@
 
   // ------------------ Pause ------------------
   function togglePause(){
-    if (gameOver) return;
+    if (stopMusic(); playSound("gameOver");
+gameOver) return;
     if (replayMode) return;
     paused = !paused;
     updateHud();
@@ -1516,7 +1544,8 @@
 
   // ------------------ Hold ------------------
   function hold(){
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     if (replayMode) return;
     if (!canHold) return;
     canHold = false;
@@ -1540,7 +1569,8 @@
 
   // ------------------ Movement / rotation (SRS kicks) ------------------
   function tryMove(dx,dy, sfx=true){
-    if (paused || gameOver || clearing) return false;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return false;
     if (replayMode) return false;
     const nx = current.x + dx;
     const ny = current.y + dy;
@@ -1579,7 +1609,8 @@
   }
 
   function rotate(dir){
-    if (paused || gameOver || clearing) return false;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return false;
     if (replayMode) return false;
     const res = rotateWithKick(current.type, current.x, current.y, current.rot, dir);
     if (!res) return false;
@@ -1606,7 +1637,8 @@
   }
 
   function hardDrop(){
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     if (replayMode) return;
     const d = hardDropDistance(current);
     if (d <= 0) return;
@@ -1716,7 +1748,8 @@
   function handleActionTap(actionId, data){
     ensureAudio();
 
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     if (replayMode) return;
 
     switch(actionId){
@@ -1760,14 +1793,16 @@
 
     if (actionId === "pause"){ e?.preventDefault?.(); togglePause(); return; }
     if (actionId === "restart"){
-      if (gameOver){
+      if (stopMusic(); playSound("gameOver");
+gameOver){
         e?.preventDefault?.();
         if (replayMode) stopReplay();
         else resetGame(false);
       }
       return;
     }
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     if (replayMode) return;
 
     switch(actionId){
@@ -1864,7 +1899,8 @@
 
   // ------------------ Held moves (DAS/ARR) ------------------
   function handleHeldMoves(){
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     if (replayMode) return;
     if (kbMoveHeldDir === 0) return;
 
@@ -1909,7 +1945,8 @@
     if (adx + ady > 6) touchStart.moved = true;
 
     const TH = 28;
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     if (replayMode) return;
 
     // Vertical swipe
@@ -1947,7 +1984,8 @@
 
     const dt = performance.now() - touchStart.t;
     if (!touchStart.moved && dt < 260){
-      if (!paused && !gameOver && !clearing && !replayMode){
+      if (!paused && !stopMusic(); playSound("gameOver");
+gameOver && !clearing && !replayMode){
         // tap = rotate (recorded)
         triggerActionTap("rotateCW");
       }
@@ -1996,24 +2034,28 @@
 
     if (edge(9, start)) triggerActionDown("pause", null);
 
-    if (!paused && !gameOver && !replayMode){
+    if (!paused && !stopMusic(); playSound("gameOver");
+gameOver && !replayMode){
       if (edge(0, a)) triggerActionDown("rotateCW", null);
       if (edge(1, b)) triggerActionDown("rotateCCW", null);
       if (edge(2, x)) triggerActionDown("hold", null);
       if (edge(3, y)) triggerActionDown("hardDrop", null);
     }
 
-    gpSoftDropHeld = down && !paused && !gameOver && !replayMode;
+    gpSoftDropHeld = down && !paused && !stopMusic(); playSound("gameOver");
+gameOver && !replayMode;
 
     const dir = left && !right ? -1 : right && !left ? 1 : 0;
     if (dir !== gpMoveDir){
       gpMoveDir = dir;
-      if (gpMoveDir !== 0 && !paused && !gameOver && !clearing && !replayMode){
+      if (gpMoveDir !== 0 && !paused && !stopMusic(); playSound("gameOver");
+gameOver && !clearing && !replayMode){
         gpMoveHeldSince = performance.now();
         gpMoveLastRepeat = 0;
         triggerActionDown(gpMoveDir === -1 ? "moveLeft" : "moveRight", null);
       }
-    } else if (gpMoveDir !== 0 && !paused && !gameOver && !clearing && !replayMode){
+    } else if (gpMoveDir !== 0 && !paused && !stopMusic(); playSound("gameOver");
+gameOver && !clearing && !replayMode){
       const now = performance.now();
       const heldFor = now - gpMoveHeldSince;
       if (heldFor >= DAS){
@@ -2165,7 +2207,8 @@
 
   function drawGhost(){
     if (!showGhost) return;
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
     const d = hardDropDistance(current);
     const blocks = getBlocks(current, current.rot, {x:current.x, y:current.y + d});
     for (const b of blocks){
@@ -2179,7 +2222,8 @@
 
   function drawHintGhost(dt){
     if (!hintState) return;
-    if (paused || gameOver || clearing) return;
+    if (paused || stopMusic(); playSound("gameOver");
+gameOver || clearing) return;
 
     hintPulse += dt * 0.010;
 
@@ -2564,7 +2608,8 @@
   function resetGame(keepTrainer=false){
     board = makeBoard();
     score = 0; lines = 0; level = 1;
-    paused = false; gameOver = false;
+    paused = false; stopMusic(); playSound("gameOver");
+gameOver = false;
     touchingGround = false; groundSince = 0;
     dropAcc = 0;
 
@@ -2656,7 +2701,8 @@
       const ev = actionLog[replayIdx++];
       applyRecordedAction(ev);
     }
-    if (replayIdx >= actionLog.length && gameOver){
+    if (replayIdx >= actionLog.length && stopMusic(); playSound("gameOver");
+gameOver){
       replayMode = false;
       updateHud();
       setToast("Replay finished", true);
@@ -2667,7 +2713,8 @@
   function update(dt){
     softDropHeld = kbSoftDropHeld || gpSoftDropHeld;
 
-    if (!paused && !gameOver){
+    if (!paused && !stopMusic(); playSound("gameOver");
+gameOver){
       computeHint();
 
       pollGamepad();
@@ -2853,6 +2900,111 @@
 
   init();
 })();
+
+/* ===== STG SOUND SYSTEM ===== */
+
+// ===== MASTER VOLUME =====
+let masterVolume = 0.8;
+const savedVolume = localStorage.getItem("stg_volume");
+if (savedVolume !== null) masterVolume = parseFloat(savedVolume);
+
+// Override beep to apply master volume
+const _beep = beep;
+beep = function(freq, duration, type="sine", volume=0.12){
+  if (!soundEnabled) return;
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = volume * masterVolume;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+};
+
+// Volume slider wiring
+const volumeSlider = document.getElementById("volumeSlider");
+const volumeLabel  = document.getElementById("volumeLabel");
+
+if (volumeSlider && volumeLabel){
+  volumeSlider.value = masterVolume;
+  volumeLabel.textContent = Math.round(masterVolume * 100) + "%";
+
+  volumeSlider.oninput = () => {
+    masterVolume = parseFloat(volumeSlider.value);
+    localStorage.setItem("stg_volume", masterVolume);
+    volumeLabel.textContent = Math.round(masterVolume * 100) + "%";
+  };
+}
+
+let soundEnabled = true;
+const savedSound = localStorage.getItem("stg_sound");
+if (savedSound !== null) soundEnabled = savedSound === "on";
+
+let audioCtx = null;
+function ensureAudio(){
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function beep(freq, duration, type="sine", volume=0.12){
+  if (!soundEnabled) return;
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.value = freq;
+  gain.gain.value = volume;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  osc.stop(audioCtx.currentTime + duration);
+}
+
+function celebrationSound(){
+  beep(800,0.08);
+  setTimeout(()=>beep(1100,0.1),120);
+  setTimeout(()=>beep(1400,0.12),260);
+}
+
+function levelUpSound(){
+  beep(600,0.07);
+  setTimeout(()=>beep(900,0.1),100);
+  setTimeout(()=>beep(1200,0.14),240);
+}
+
+function playSound(type){
+  if (!soundEnabled) return;
+  switch(type){
+    case "move": beep(520,0.03); break;
+    case "rotate": beep(720,0.04); break;
+    case "softDrop": beep(320,0.03); break;
+    case "hardDrop": beep(180,0.08); break;
+    case "line1": beep(600,0.06); break;
+    case "line2": beep(720,0.08); break;
+    case "line3": beep(860,0.10); break;
+    case "tetris": beep(980,0.14); celebrationSound(); break;
+    case "levelUp": levelUpSound(); break;
+    case "stopMusic(); playSound("gameOver");
+gameOver": beep(140,0.3); break;
+  }
+}
+
+// Sound button
+const soundBtn = document.getElementById("soundBtn");
+if (soundBtn){
+  function updateSoundBtn(){
+    soundBtn.textContent = soundEnabled ? "🔊 Sound" : "🔇 Muted";
+  }
+  soundBtn.onclick = ()=>{
+    soundEnabled = !soundEnabled;
+    localStorage.setItem("stg_sound", soundEnabled ? "on":"off");
+    updateSoundBtn();
+  };
+  updateSoundBtn();
+}
+
 </script>
 <script>
   if ("serviceWorker" in navigator) {
@@ -2861,5 +3013,11 @@
     });
   }
 </script>
+
+<button id="soundBtn" style="margin-left:8px;">🔊 Sound</button>
+<input type="range" id="volumeSlider" min="0" max="1" step="0.01" style="vertical-align:middle; margin-left:6px;">
+<span id="volumeLabel" style="margin-left:4px;">80%</span>
+
+
 </body>
 </html>
