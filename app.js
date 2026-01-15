@@ -90,6 +90,9 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   const toastText = document.getElementById('toastText');
 
   const soundToggle = document.getElementById('soundToggle');
+  const musicToggle = document.getElementById('musicToggle');
+  const musicVolSlider = document.getElementById('musicVolSlider');
+  const musicVolVal = document.getElementById('musicVolVal');
 
   const trainerToggle = document.getElementById('trainerToggle');
   const hintToggle = document.getElementById('hintToggle');
@@ -273,8 +276,12 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   let masterGain = null;
   let soundEnabled = true;
 
+  // Persisted settings keys
+  const SFX_ENABLED_KEY  = "stg_sfx_enabled_v1";
+  const MUSIC_ENABLED_KEY = "stg_music_enabled_v1";
+  const MUSIC_VOL_KEY     = "stg_music_volume_v1"; // 0..100
+
   function ensureAudio(){
-    if (!soundEnabled) return;
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     if (!masterGain){
       masterGain = audioCtx.createGain();
@@ -311,14 +318,271 @@ const overlayGameOver = document.getElementById('overlayGameOver');
     hold:   ()=>beep(420, 0.065, "triangle", 0.040, 560),
     over:   ()=>beep(180, 0.22, "sawtooth",  0.055, 80),
     pause:  ()=>beep(260, 0.08, "sine", 0.040, 180),
-    level:  ()=>{ beep(640, 0.10, "triangle", 0.045, 980); setTimeout(()=>beep(860, 0.08, "triangle", 0.040, 1240), 80); setTimeout(()=>beep(1080, 0.09, "triangle", 0.040, 1480), 160); },
-    perfect:()=>{ beep(920, 0.12, "triangle", 0.060, 1480); setTimeout(()=>beep(1240, 0.10, "triangle", 0.055, 1780), 100); setTimeout(()=>beep(1560, 0.12, "triangle", 0.055, 1980), 200); },
+    level:  ()=>beep(640, 0.12, "triangle", 0.045, 980),
+    perfect:()=>beep(920, 0.18, "triangle", 0.070, 1480),
     stepOk: ()=>beep(880, 0.08, "triangle", 0.050, 1100),
     stepBad:()=>beep(220, 0.12, "sawtooth", 0.040, 140),
   };
 
   function setSoundUI(){
+    if (!soundToggle) return;
     soundToggle.textContent = soundEnabled ? "🔊 Sound: On" : "🔇 Sound: Off";
+    soundToggle.classList.toggle("on", soundEnabled);
+  }
+
+  function setMusicUI(){
+    if (musicToggle){
+      musicToggle.textContent = musicEnabled ? "🎵 Music: On" : "🎵 Music: Off";
+      musicToggle.classList.toggle("on", musicEnabled);
+    }
+    if (musicVolSlider){
+      musicVolSlider.disabled = !musicEnabled;
+      musicVolSlider.value = String(musicVolume);
+    }
+    if (musicVolVal){
+      musicVolVal.textContent = String(musicVolume);
+    }
+  }
+
+  function saveAudioPrefs(){
+    try{ localStorage.setItem(SFX_ENABLED_KEY, soundEnabled ? "1" : "0"); }catch{}
+    try{ localStorage.setItem(MUSIC_ENABLED_KEY, musicEnabled ? "1" : "0"); }catch{}
+    try{ localStorage.setItem(MUSIC_VOL_KEY, String(musicVolume)); }catch{}
+  }
+
+  function loadAudioPrefs(){
+    try{
+      const sfx = localStorage.getItem(SFX_ENABLED_KEY);
+      if (sfx !== null) soundEnabled = sfx === "1";
+    }catch{}
+    try{
+      const me = localStorage.getItem(MUSIC_ENABLED_KEY);
+      if (me !== null) musicEnabled = me === "1";
+    }catch{}
+    try{
+      const mv = parseInt(localStorage.getItem(MUSIC_VOL_KEY) || "60", 10);
+      if (!Number.isNaN(mv)) musicVolume = Math.max(0, Math.min(100, mv));
+    }catch{}
+  }
+
+  // ------------------ Music (Background loop) ------------------
+  // Simple synth-based looping themes (no external files).
+  // Modes map to gravity: modern / classic / zen
+  let musicEnabled = true;         // independent from SFX
+  let musicVolume = 60;            // 0..100 (slider)
+  let musicTheme = "modern";
+  let musicGain = null;
+  let musicTimer = null;
+  let musicStep = 0;
+  let musicNextTime = 0;
+
+  const midiToFreq = (m)=> 440 * Math.pow(2, (m - 69) / 12);
+
+  function ensureMusic(){
+    if (!musicEnabled) return;
+    ensureAudio();
+    if (!audioCtx || !masterGain) return;
+    if (!musicGain){
+      musicGain = audioCtx.createGain();
+      musicGain.gain.value = (musicVolume/100) * 0.30;
+      musicGain.connect(masterGain);
+    }
+  }
+
+  function scheduleTone(freq, t, dur, opts={}){
+    if (!audioCtx || !musicGain) return;
+    const type = opts.type || "sine";
+    const gain = opts.gain ?? 0.04;
+    const attack = opts.attack ?? 0.01;
+    const release = opts.release ?? Math.min(0.09, dur * 0.5);
+    const detune = opts.detune ?? 0;
+
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+
+    osc.type = type;
+    osc.detune.setValueAtTime(detune, t);
+    osc.frequency.setValueAtTime(freq, t);
+
+    // Optional glide
+    if (opts.glideTo){
+      osc.frequency.exponentialRampToValueAtTime(opts.glideTo, t + dur);
+    }
+
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(gain, t + attack);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + release);
+
+    osc.connect(g);
+
+    // Optional filter for softer "pads"
+    if (opts.filter){
+      const f = audioCtx.createBiquadFilter();
+      f.type = opts.filter.type || "lowpass";
+      f.frequency.setValueAtTime(opts.filter.freq || 1200, t);
+      f.Q.setValueAtTime(opts.filter.q || 0.7, t);
+      g.connect(f);
+      f.connect(musicGain);
+    } else {
+      g.connect(musicGain);
+    }
+
+    osc.start(t);
+    osc.stop(t + dur + release + 0.06);
+  }
+
+  const MUSIC_THEMES = {
+    modern: {
+      bpm: 128,
+      stepsPerBeat: 2, // 8th notes
+      length: 32,
+      prog: [57, 60, 62, 64], // A3, C4, D4, E4 (A minor vibe)
+      stepFn: (step, t, dur)=>{
+        const chord = Math.floor(step / 8) % 4;
+        const root = MUSIC_THEMES.modern.prog[chord];
+        // Bass thump on beats
+        if (step % 4 === 0){
+          scheduleTone(midiToFreq(root - 12), t, dur * 1.8, { type:"sine", gain:0.032, attack:0.01, release:0.10 });
+        }
+        // Arp sparkle
+        const arp = [0, 7, 12, 7];
+        const note = root + arp[step % 4];
+        scheduleTone(midiToFreq(note + 12), t, dur * 0.95, { type:"triangle", gain:0.018, attack:0.008, release:0.05 });
+
+        // Soft chord stab every 2 beats
+        if (step % 8 === 0){
+          scheduleTone(midiToFreq(root + 24), t, dur * 0.55, { type:"sawtooth", gain:0.014, attack:0.01, release:0.05, filter:{type:"lowpass", freq:1400, q:0.9} });
+        }
+      }
+    },
+    classic: {
+      bpm: 168,
+      stepsPerBeat: 4, // 16th notes (chiptune-ish)
+      length: 32,
+      bass: [48, 50, 53, 55], // C3, D3, F3, G3
+      melody: [
+        72,74,76,74, 72,69,72,74,
+        76,77,79,77, 76,74,72,69,
+        72,74,76,74, 72,69,67,69,
+        71,72,74,72, 71,69,67,69
+      ],
+      stepFn: (step, t, dur)=>{
+        const bar = Math.floor(step / 8) % 4;
+        const root = MUSIC_THEMES.classic.bass[bar];
+
+        // Bass on 1 & 3
+        if (step % 8 === 0 || step % 8 === 4){
+          scheduleTone(midiToFreq(root), t, dur * 2.2, { type:"square", gain:0.020, attack:0.005, release:0.06 });
+        }
+
+        // Lead melody every 16th
+        const m = MUSIC_THEMES.classic.melody[step % MUSIC_THEMES.classic.melody.length];
+        scheduleTone(midiToFreq(m), t, dur * 0.85, { type:"square", gain:0.012, attack:0.003, release:0.04 });
+
+        // Tiny "blip" hi-hat feel
+        if (step % 2 === 0){
+          scheduleTone(midiToFreq(96), t, dur * 0.25, { type:"triangle", gain:0.006, attack:0.002, release:0.02 });
+        }
+      }
+    },
+    zen: {
+      bpm: 88,
+      stepsPerBeat: 1, // quarters
+      length: 16,
+      chords: [
+        [57, 64, 69], // A minor (A3 E4 A4)
+        [55, 62, 67], // G major-ish
+        [52, 59, 64], // E minor-ish
+        [50, 57, 62], // Dsus vibe
+      ],
+      stepFn: (step, t, dur)=>{
+        const chord = Math.floor(step / 4) % 4;
+        const notes = MUSIC_THEMES.zen.chords[chord];
+
+        // Pad (long notes)
+        if (step % 4 === 0){
+          for (const n of notes){
+            const f = midiToFreq(n);
+            scheduleTone(f, t, dur * 3.6, { type:"sine", gain:0.012, attack:0.06, release:0.22, filter:{type:"lowpass", freq:900, q:0.6} });
+            // gentle detune layer
+            scheduleTone(f, t, dur * 3.6, { type:"sine", gain:0.009, attack:0.06, release:0.22, detune:6, filter:{type:"lowpass", freq:900, q:0.6} });
+          }
+        }
+
+        // Soft bell accent
+        if (step % 2 === 0){
+          const bell = notes[(step/2)%notes.length|0] + 24;
+          scheduleTone(midiToFreq(bell), t, dur * 0.8, { type:"triangle", gain:0.008, attack:0.02, release:0.12, filter:{type:"lowpass", freq:1200, q:0.8} });
+        }
+      }
+    }
+  };
+
+  function stopMusic(fadeMs=140){
+    if (musicTimer){ clearInterval(musicTimer); musicTimer = null; }
+    if (!audioCtx || !musicGain) return;
+    try{
+      const t0 = audioCtx.currentTime;
+      musicGain.gain.cancelScheduledValues(t0);
+      musicGain.gain.setValueAtTime(musicGain.gain.value, t0);
+      musicGain.gain.linearRampToValueAtTime(0.0001, t0 + fadeMs/1000);
+    }catch{}
+  }
+
+  function startMusic(theme=gravityMode){
+    if (!musicEnabled) return;
+    if (!started || paused || gameOver) return;
+    if (replayMode) return;
+
+    ensureMusic();
+    if (!audioCtx || !musicGain) return;
+
+    const newTheme = (theme === "classic" || theme === "zen" || theme === "modern") ? theme : "modern";
+    musicTheme = newTheme;
+
+    // Reset clock
+    musicStep = 0;
+    musicNextTime = audioCtx.currentTime + 0.06;
+
+    // Fade in
+    try{
+      const t0 = audioCtx.currentTime;
+      musicGain.gain.cancelScheduledValues(t0);
+      musicGain.gain.setValueAtTime(0.0001, t0);
+      const target = (musicVolume/100) * 0.30;
+      musicGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), t0 + 0.18);
+    }catch{}
+
+    const cfg = MUSIC_THEMES[musicTheme] || MUSIC_THEMES.modern;
+    const stepSeconds = (60 / cfg.bpm) / cfg.stepsPerBeat;
+    const intervalMs = Math.max(25, Math.floor(stepSeconds * 1000));
+
+    if (musicTimer) clearInterval(musicTimer);
+    musicTimer = setInterval(()=>musicTick(), intervalMs);
+  }
+
+  function musicTick(){
+    if (!musicEnabled) return;
+    if (!audioCtx || !musicGain) return;
+    if (!started || paused || gameOver || replayMode) return;
+
+    const cfg = MUSIC_THEMES[musicTheme] || MUSIC_THEMES.modern;
+    const stepDur = (60 / cfg.bpm) / cfg.stepsPerBeat;
+
+    // schedule a little ahead (keeps timing stable)
+    const ahead = 0.16;
+    while (musicNextTime < audioCtx.currentTime + ahead){
+      cfg.stepFn(musicStep, musicNextTime, stepDur);
+      musicNextTime += stepDur;
+      musicStep = (musicStep + 1) % cfg.length;
+    }
+  }
+
+  function syncMusicTheme(){
+    // Theme follows gravity mode
+    if (paused || gameOver || !started) return;
+    stopMusic(90);
+    startMusic(gravityMode);
   }
 
   // ------------------ Helpers ------------------
@@ -382,78 +646,6 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   const particles = [];
   const lockFlashes = [];
   const LOCK_FLASH_MS = 140;
-
-
-  // Screen flash + sparkle bursts (polish FX)
-  let screenFlashT = 0, screenFlashDur = 0, screenFlashAlpha = 0;
-
-  function triggerScreenFlash(alpha=0.35, dur=200){
-    if (!enableFX) return;
-    screenFlashAlpha = alpha;
-    screenFlashDur = dur;
-    screenFlashT = dur;
-  }
-
-  function addParticle(x,y,vx,vy,r,life,color){
-    particles.push({ x,y,vx,vy,r,life,age:0,color:color||null });
-  }
-
-  function burstParticles(x,y,count=40, speed=520, size=3, life=0.45){
-    if (!enableFX) return;
-    for (let i=0; i<count; i++){
-      const a = Math.random()*Math.PI*2;
-      const sp = speed*(0.25 + Math.random()*0.95);
-      const vx = Math.cos(a)*sp;
-      const vy = Math.sin(a)*sp*0.85;
-      const rr = size*(0.6 + Math.random()*1.1);
-      const ll = life*(0.65 + Math.random()*0.75);
-      // Colorful sparkles (soft neon)
-      const hue = (Math.random()*360)|0;
-      const col = `hsla(${hue}, 95%, 70%, 0.95)`;
-      addParticle(x,y,vx,vy,rr,ll,col);
-    }
-  }
-
-  function boardCenterPx(){
-    return {
-      x: padX + boardW/2,
-      y: padY + boardH/2
-    };
-  }
-
-  function spawnLevelSparkles(){
-    // Sparkle bursts around the edges/corners of the playfield
-    const corners = [
-      {x: padX + 8,         y: padY + 8},
-      {x: padX + boardW-8,  y: padY + 8},
-      {x: padX + 8,         y: padY + boardH-8},
-      {x: padX + boardW-8,  y: padY + boardH-8},
-    ];
-    corners.forEach(c=>burstParticles(c.x, c.y, 34, 620, 3.2, 0.55));
-    const mid = boardCenterPx();
-    burstParticles(mid.x, padY + 10, 26, 520, 3.0, 0.50);
-  }
-
-  function spawnLineClearSparkles(rows, n){
-    // A thin sparkle "sweep" across the cleared rows
-    const count = 50 + n*26;
-    for (let i=0; i<count; i++){
-      const x = padX + Math.random()*boardW;
-      // pick a cleared row, convert board y -> visible y
-      const ry = rows[(Math.random()*rows.length)|0];
-      const visY = (ry - HIDDEN_ROWS) + 0.5;
-      const y = padY + visY*cellSize;
-      const a = -Math.PI/2 + (Math.random()-0.5)*0.6; // mostly upward
-      const sp = 720*(0.35 + Math.random()*0.75);
-      const vx = Math.cos(a)*sp;
-      const vy = Math.sin(a)*sp;
-      const rr = 2.4*(0.7 + Math.random()*1.2);
-      const ll = 0.35*(0.7 + Math.random()*0.9);
-      const hue = (180 + Math.random()*160)|0;
-      const col = `hsla(${hue}, 95%, 72%, 0.95)`;
-      addParticle(x,y,vx,vy,rr,ll,col);
-    }
-  }
 
   // Shake / banner
   let shakeTime = 0, shakeDur = 0, shakeMag = 0;
@@ -780,11 +972,6 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   function showLevelBanner(newLevel){
     levelBannerText = `LEVEL ${newLevel}!`;
     levelBannerT = 900;
-
-    // Celebration: bright flash + sparkles
-    triggerScreenFlash(0.32, 220);
-    spawnLevelSparkles();
-
     SFX.level();
   }
 
@@ -841,6 +1028,10 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   function endGame(){
     gameOver = true;
     paused = false;
+
+
+    // stop background music on game over
+    stopMusic(180);
 
     if (score > highScore) highScore = score;
 
@@ -968,6 +1159,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   // ------------------ Replay ------------------
   function startReplay(){
     if (!lastReplay) return;
+    stopMusic(120);
     setToast("▶ Replaying last run…", true);
     setTimeout(()=>setToast("", false), 900);
 
@@ -1024,6 +1216,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
       started = true;
       paused = false;
       updateHud();
+      startMusic(gravityMode);
       setToast("Go!", true);
       setTimeout(()=>setToast("", false), 700);
       return;
@@ -1032,6 +1225,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
     paused = !paused;
     updateHud();
     setToast(paused ? "Paused" : "Resumed", true);
+    if (paused) { stopMusic(120); } else { startMusic(gravityMode); }
     SFX.pause();
     setTimeout(()=>setToast("", false), 700);
   }
@@ -1286,7 +1480,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
       if (gameOver){
         e?.preventDefault?.();
         if (replayMode) stopReplay();
-        else { resetGame(false); gameOver = false; started = true; paused = false; updateHud(); }
+        else { resetGame(false); gameOver = false; started = true; paused = false; updateHud(); startMusic(gravityMode); }
       }
       return;
     }
@@ -1785,24 +1979,10 @@ const overlayGameOver = document.getElementById('overlayGameOver');
 
   function drawParticles(dt){
     if (!enableFX) return;
-
-    // Screen flash (line clears / level ups)
-    if (screenFlashT > 0){
-      screenFlashT = Math.max(0, screenFlashT - dt);
-      const t = screenFlashDur ? (screenFlashT / screenFlashDur) : 0;
-      ctx.save();
-      ctx.globalAlpha = screenFlashAlpha * t;
-      ctx.fillStyle = "rgba(255,255,255,1)";
-      ctx.fillRect(0,0,gameCanvas.width, gameCanvas.height);
-      ctx.restore();
-    }
-
-    // Sparkle particles
     for (let i=particles.length-1; i>=0; i--){
       const p = particles[i];
       p.age += dt/1000;
       if (p.age >= p.life){ particles.splice(i,1); continue; }
-
       p.vy += 520 * (dt/1000);
       p.x += p.vx * (dt/1000);
       p.y += p.vy * (dt/1000);
@@ -1811,8 +1991,8 @@ const overlayGameOver = document.getElementById('overlayGameOver');
 
       const tt = 1 - (p.age / p.life);
       ctx.save();
-      ctx.globalAlpha = 0.95 * tt;
-      ctx.fillStyle = p.color || "rgba(255,255,255,.75)";
+      ctx.globalAlpha = 0.9 * tt;
+      ctx.fillStyle = "rgba(255,255,255,.7)";
       ctx.beginPath();
       ctx.arc(p.x,p.y,p.r*(0.6+0.6*tt),0,Math.PI*2);
       ctx.fill();
@@ -2068,9 +2248,6 @@ const overlayGameOver = document.getElementById('overlayGameOver');
       score += base;
       lines += n;
 
-      triggerScreenFlash(0.55, 140 + n*60);
-      spawnLineClearSparkles(full, n);
-
       const prevLevel = level;
       level = 1 + Math.floor(lines / LINES_PER_LEVEL);
       if (level > prevLevel) showLevelBanner(level);
@@ -2272,6 +2449,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
       started = true;
       paused = false;
       updateHud();
+      if (musicEnabled) startMusic(gravityMode);
       setToast("Started", false);
     });
   }
@@ -2283,6 +2461,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
       started = true;
       paused = false;
       updateHud();
+      startMusic(gravityMode);
       setToast("Restarted", false);
     });
   }
@@ -2298,7 +2477,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
 
   restartBtn.addEventListener('click', ()=>{
     if (replayMode) stopReplay();
-    else { resetGame(false); gameOver = false; started = true; paused = false; updateHud(); }
+    else { resetGame(false); gameOver = false; started = true; paused = false; updateHud(); if (musicEnabled) startMusic(gravityMode); }
   });
 
   replayBtn.addEventListener('click', ()=>startReplay());
@@ -2307,8 +2486,45 @@ const overlayGameOver = document.getElementById('overlayGameOver');
   soundToggle.addEventListener('click', ()=>{
     soundEnabled = !soundEnabled;
     setSoundUI();
-    if (soundEnabled){ ensureAudio(); SFX.rotate(); }
+    saveAudioPrefs();
+    if (soundEnabled){
+      ensureAudio();
+      SFX.rotate();
+    }
   });
+
+  if (musicToggle){
+    musicToggle.addEventListener('click', ()=>{
+      musicEnabled = !musicEnabled;
+      setMusicUI();
+      saveAudioPrefs();
+      if (musicEnabled){
+        ensureMusic();
+        if (started && !paused && !gameOver && !replayMode) startMusic(gravityMode);
+      } else {
+        stopMusic(140);
+      }
+    });
+  }
+
+  if (musicVolSlider){
+    musicVolSlider.addEventListener('input', ()=>{
+      musicVolume = Math.max(0, Math.min(100, parseInt(musicVolSlider.value || '0', 10) || 0));
+      if (musicVolVal) musicVolVal.textContent = String(musicVolume);
+      saveAudioPrefs();
+
+      // Apply live to running music
+      if (audioCtx && musicGain){
+        const t0 = audioCtx.currentTime;
+        const target = (musicVolume/100) * 0.30;
+        try{
+          musicGain.gain.cancelScheduledValues(t0);
+          musicGain.gain.setValueAtTime(musicGain.gain.value, t0);
+          musicGain.gain.linearRampToValueAtTime(Math.max(0.0001, target), t0 + 0.08);
+        }catch{}
+      }
+    });
+  }
 
   trainerToggle.addEventListener('click', ()=>{
     if (replayMode) return;
@@ -2388,6 +2604,7 @@ const overlayGameOver = document.getElementById('overlayGameOver');
     gravityMode = gravitySelect.value;
     recalcSpeed();
     setLastClear(`GRAVITY: ${gravityMode.toUpperCase()}`, true);
+    syncMusicTheme();
   });
 
   ghostToggle.addEventListener('click', ()=>{ showGhost = !showGhost; updateHud(); });
@@ -2411,10 +2628,12 @@ const overlayGameOver = document.getElementById('overlayGameOver');
 
   // ------------------ Init ------------------
   function init(){
+    loadAudioPrefs();
     loadHighAndLeaderboard();
     loadBinds();
     renderBindUI();
     setSoundUI();
+    setMusicUI();
     updateLeaderboardUI();
     loadLastReplay();
 
