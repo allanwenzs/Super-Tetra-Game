@@ -1,4 +1,4 @@
-const CACHE_NAME = "stg-pwa-v2-20260114-fx";
+const CACHE_NAME = "stg-pwa-v2-20260115120000-music-ui";
 const ASSETS = [
   "./",
   "./index.html",
