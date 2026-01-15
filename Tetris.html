@@ -135,6 +135,7 @@
               <button class="toggle on" id="outlineToggle">🟦 Target outline: On</button>
               <button class="toggle" id="strictToggle">⚠ Strict: Off</button>
               <button class="toggle on" id="soundToggle">🔊 Sound: On</button>
+              <button class="toggle on" id="musicToggle">🎵 Music: On</button>
             </div>
           </h3>
 
@@ -197,6 +198,12 @@
                 <option value="zen">Zen</option>
               </select>
               <div class="help" style="margin-top:6px">Speed curve style.</div>
+            </div>
+
+            <div class="setting">
+              <div class="k">Music Volume <b id="musicVolVal">60</b></div>
+              <input id="musicVolSlider" type="range" min="0" max="100" step="1" value="60"/>
+              <div class="help" style="margin-top:6px">Background music level (independent from SFX).</div>
             </div>
             <div class="setting">
               <div class="k">Visual</div>
