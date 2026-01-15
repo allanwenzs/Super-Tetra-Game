@@ -1,8 +1,13 @@
-const CACHE_NAME = "tetris-pwa-v1";
+const CACHE_NAME = "stg-pwa-v2-20260114-fx";
 const ASSETS = [
   "./",
-  "./tetris.html",
-  "./manifest.json"
+  "./index.html",
+  "./styles.css",
+  "./app.js",
+  "./manifest.json",
+  "./icons/icon-192.png",
+  "./icons/icon-512.png",
+  "./Tetris.html"
 ];
 
 self.addEventListener("install", event => {

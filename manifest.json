@@ -1,8 +1,8 @@
 {
   "name": "Super Tetra Game",
-  "short_name": "Tetris",
-  "description": "A modern, polished Tetris game with replay, training, and mobile controls.",
-  "start_url": "./tetri.html",
+  "short_name": "STG",
+  "description": "A modern, polished Tetris-style puzzle game with sound, music, and replay. Contact: info@supertetragame.com",
+  "start_url": "./Tetris.html",
   "display": "fullscreen",
   "orientation": "portrait",
   "background_color": "#0b1020",
